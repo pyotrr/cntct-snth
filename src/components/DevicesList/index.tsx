@@ -14,6 +14,7 @@ const DevicesList: Component<IDevicesListProps> = (props) => {
     <div class={styles.wrapper}>
       <For each={props.devices}>
         {(device) => {
+          console.log(device);
           if (device.groupId === "default") {
             return (
               <button

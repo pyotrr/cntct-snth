@@ -1,15 +1,19 @@
 import { createSignal, onMount, Show } from "solid-js";
 import DevicesList from "./components/DevicesList";
-import processorWorkletUrl from "./Processor.ts?url";
+import processorWorkletUrl from "./assets/Processor.ts?url";
+
+import styles from "./components/DevicesList/DevicesList.module.css";
 
 const AUDIO_INPUT_IDENTIFIER = "audioinput" as const;
 let audioCtx: AudioContext;
 let audioNode;
+let workletNode: AudioWorkletNode;
 
 const App = () => {
   const [hasMicPermission, setHasMicPermission] = createSignal<boolean>();
   const [audioInputDevices, setAudioInputDevices] =
     createSignal<InputDeviceInfo[]>();
+  const [isReadingFromMic, setIsReadingFromMic] = createSignal(false);
 
   onMount(() => {
     navigator.mediaDevices
@@ -35,16 +39,19 @@ const App = () => {
   const onInputDeviceSelect = async (deviceId: string) => {
     if (!audioCtx) {
       audioCtx = new AudioContext();
-      console.log(audioCtx.audioWorklet);
       await audioCtx.audioWorklet.addModule(processorWorkletUrl);
     }
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, deviceId: deviceId },
     });
     audioNode = audioCtx.createMediaStreamSource(stream);
-    const audioWorkletNode = new AudioWorkletNode(audioCtx, "processor");
-    audioNode.connect(audioWorkletNode);
-    console.log(audioWorkletNode);
+    console.log(audioCtx.sampleRate);
+    workletNode = new AudioWorkletNode(audioCtx, "processor", {
+      processorOptions: { sampleRate: audioCtx.sampleRate },
+    });
+    audioNode.connect(workletNode).connect(audioCtx.destination);
+    setIsReadingFromMic(true);
+    console.log(workletNode);
   };
 
   return (
@@ -58,6 +65,17 @@ const App = () => {
             devices={audioInputDevices() || []}
             onInputDeviceSelect={onInputDeviceSelect}
           />
+          <Show when={isReadingFromMic()}>
+            <button
+              type={"button"}
+              class={styles.deviceItem}
+              onClick={() => {
+                workletNode.port.postMessage("stop");
+              }}
+            >
+              Stop
+            </button>
+          </Show>
         </Show>
       </Show>
     </div>
